@@ -1,0 +1,10 @@
+build/
+out/
+.vs/
+.cache/
+.vcpkg/
+CMakeUserPresets.json
+compile_commands.json
+*.log
+*.pdb
+*.ilk

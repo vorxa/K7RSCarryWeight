@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "k7skyrimplugins",
+  "license": "GPL-3.0-or-later",
+  "builtin-baseline": "23b8a8e7409c2d6346114a88e834165bde79a51c",
+  "dependencies": [
+    "catch2",
+    "directxmath",
+    "directxtk",
+    "fmt",
+    "rapidcsv",
+    "spdlog",
+    "tomlplusplus",
+    "xbyak"
+  ]
+}
