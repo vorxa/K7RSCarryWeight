@@ -299,12 +299,23 @@ namespace k7::rscw::ui
                 files += (files.empty() ? "" : ", ") + file;
             }
             Line(F(keys::FILES, { { "files", files } }));
-            if (snapshot.problems.empty()) {
+            // The problems of the last load do not include a user file that broke after it: the live check reads the
+            // file every refresh, so its syntax error with the line number is shown here too.
+            auto problems = snapshot.problems;
+            for (const auto& problem : snapshot.userFile.diagnostics) {
+                const bool known = std::ranges::any_of(problems, [&](const common::Diagnostic& shown) {
+                    return shown.file == problem.file && shown.line == problem.line && shown.message == problem.message;
+                });
+                if (!known) {
+                    problems.push_back(problem);
+                }
+            }
+            if (problems.empty()) {
                 Line(T(keys::ERRORS_NONE));
                 return;
             }
             I::TextColored(I::ImVec4{ 1.0f, 0.55f, 0.35f, 1.0f }, "%s", T(keys::ERRORS_HEADER).c_str());
-            for (const auto& problem : snapshot.problems) {
+            for (const auto& problem : problems) {
                 Wrapped(common::Format(problem));
             }
         }

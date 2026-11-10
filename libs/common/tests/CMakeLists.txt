@@ -10,6 +10,7 @@ add_executable(k7_common_tests
     test_migrate.cpp
     test_config_layers.cpp
     test_lang.cpp
+    test_user_file.cpp
 )
 target_link_libraries(k7_common_tests PRIVATE k7_common Catch2::Catch2WithMain)
 if(MSVC)

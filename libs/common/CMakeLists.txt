@@ -11,6 +11,7 @@ add_library(k7_common STATIC
     src/log_level.cpp
     src/migrate.cpp
     src/toml_reader.cpp
+    src/user_file.cpp
 )
 target_include_directories(k7_common PUBLIC include)
 target_link_libraries(k7_common PUBLIC spdlog::spdlog tomlplusplus::tomlplusplus)

@@ -1,7 +1,7 @@
 # The plugin version lives here and nowhere else: the DLL resource, the SKSE plugin info and the log line
 # all take it from PROJECT_VERSION. Rules: docs/VERSIONING.md (in this folder and at the repository root).
 project(K7RSCarryWeight
-    VERSION 0.2.0
+    VERSION 0.2.1
     DESCRIPTION "Base carry weight by race and sex for Skyrim (SKSE plugin)"
     LANGUAGES CXX
 )

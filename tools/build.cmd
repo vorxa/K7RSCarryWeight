@@ -17,4 +17,15 @@ if not defined PRESET (
   if exist CMakeUserPresets.json (set "PRESET=dev") else (set "PRESET=release")
 )
 cmake --preset %PRESET% || exit /b 1
+rem The dev presets deploy the DLL into the MO2 mod folders; a running game keeps the deployed DLL open, the
+rem copy fails and the stands silently keep the previous build. Stop here instead of building something that
+rem will not reach the game.
+if /i "%PRESET%"=="dev" (
+  for %%g in (SkyrimSE.exe SkyrimVR.exe) do (
+    tasklist /FI "IMAGENAME eq %%g" /NH 2>nul | "%SystemRoot%\System32\findstr.exe" /i /c:"%%g" >nul && (
+      echo %%g is running: close the game, otherwise the deployed DLL cannot be replaced.
+      exit /b 1
+    )
+  )
+)
 cmake --build --preset %PRESET% || exit /b 1

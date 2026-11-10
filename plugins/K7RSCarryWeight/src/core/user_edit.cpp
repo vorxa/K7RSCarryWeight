@@ -6,8 +6,6 @@
 
 #include "core/loader.h"
 #include "core/serialize.h"
-#include "k7/common/config_layers.h"
-#include "k7/common/file_io.h"
 
 namespace k7::rscw::core
 {
@@ -20,28 +18,6 @@ namespace k7::rscw::core
             return a.size() == b.size() && std::ranges::equal(a, b, [](const common::FormKey& x, const common::FormKey& y) {
                 return common::Equivalent(x, y);
             });
-        }
-
-        void Error(common::Diagnostics& diagnostics, std::string message)
-        {
-            diagnostics.push_back(common::Diagnostic{ common::Severity::Error, std::string(kUserConfigFile), 0, std::move(message) });
-        }
-
-        bool SaveBackup(const fs::path& userPath, common::Diagnostics& diagnostics)
-        {
-            std::error_code ec;
-            if (!fs::exists(userPath, ec)) {
-                return true;
-            }
-            const auto text = common::io::ReadFile(userPath);
-            auto       backup = userPath;
-            backup += ".bak";
-            // Copied, not renamed, so that the new file replaces the old one in a single atomic step.
-            if (!text || !common::io::WriteFileAtomic(backup, *text)) {
-                Error(diagnostics, "cannot save config.user.toml.bak, nothing written");
-                return false;
-            }
-            return true;
         }
     }
 
@@ -178,56 +154,18 @@ namespace k7::rscw::core
 
     UserFileState ReadUserFile(const fs::path& dir)
     {
-        UserFileState state;
-        state.text = common::io::ReadFile(dir / kUserConfigFile);
-        if (state.text) {
-            state.parses = common::config::Parse(*state.text, std::string(kUserConfigFile), state.diagnostics).has_value();
-        }
-        return state;
+        return common::config::ReadUserFile(dir, kUserConfigFile);
     }
 
-    WriteUserResult WriteUserFile(const fs::path& dir, std::string_view text, const std::optional<std::string>& readText, bool overwrite,
-        bool& backupDone, common::Diagnostics& diagnostics)
+    WriteUserResult WriteUserFile(const fs::path& dir, std::string_view text, const std::optional<std::string>& readText,
+        bool overwrite, bool& backupDone, common::Diagnostics& diagnostics)
     {
-        const auto userPath = dir / kUserConfigFile;
-        const auto current = common::io::ReadFile(userPath);
-        if (current) {
-            common::Diagnostics ignored;
-            if (!common::config::Parse(*current, std::string(kUserConfigFile), ignored)) {
-                return WriteUserResult::Broken;
-            }
-        }
-        if (!overwrite && current != readText) {
-            return WriteUserResult::Changed;
-        }
-
-        std::error_code ec;
-        fs::create_directories(dir, ec);
-        if (!backupDone) {
-            if (!SaveBackup(userPath, diagnostics)) {
-                return WriteUserResult::Failed;
-            }
-            backupDone = true;
-        }
-        if (!common::io::WriteFileAtomic(userPath, text)) {
-            Error(diagnostics, "cannot write the file");
-            return WriteUserResult::Failed;
-        }
-        return WriteUserResult::Written;
+        return common::config::WriteUserFile(dir, kUserConfigFile, text, readText, overwrite,
+            common::config::BackupPolicy::OncePerSession, backupDone, diagnostics);
     }
 
     bool StartCleanUserFile(const fs::path& dir, common::Diagnostics& diagnostics)
     {
-        const auto      userPath = dir / kUserConfigFile;
-        std::error_code ec;
-        fs::create_directories(dir, ec);
-        if (!SaveBackup(userPath, diagnostics)) {
-            return false;
-        }
-        if (!common::io::WriteFileAtomic(userPath, "")) {
-            Error(diagnostics, "cannot create an empty file");
-            return false;
-        }
-        return true;
+        return common::config::StartCleanUserFile(dir, kUserConfigFile, diagnostics);
     }
 }

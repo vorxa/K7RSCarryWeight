@@ -5,6 +5,7 @@ add_library(k7_skse STATIC
     src/form_lookup.cpp
     src/menu.cpp
     src/language.cpp
+    src/audio_probe.cpp
 )
 target_include_directories(k7_skse PUBLIC include)
 target_link_libraries(k7_skse PUBLIC k7_common CommonLibSSE::CommonLibSSE)

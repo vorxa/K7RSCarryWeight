@@ -54,6 +54,9 @@ set(K7_MO2_MODS_DIRS "$ENV{K7_MO2_MODS_DIRS}" CACHE STRING "MO2 mods folders to 
 option(K7_BUILD_TESTS "Build the unit tests of the plugins" ON)
 if(K7_BUILD_TESTS)
     enable_testing()
+    add_test(NAME deploy_data_backup
+        COMMAND ${CMAKE_COMMAND} "-DTEST_ROOT=${CMAKE_BINARY_DIR}"
+            -P "${CMAKE_SOURCE_DIR}/tools/test_deploy_data.cmake")
 endif()
 
 # --- Shared libraries, before the plugins that link them ----------------------------------

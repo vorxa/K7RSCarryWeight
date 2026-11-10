@@ -1,12 +1,13 @@
 # K7 - Race&Sex Carry Weight (SKSE plugin)
 
 Base carry weight of the player by race and sex for Skyrim SE (1.5.97) and AE (1.6.x, 1.7.x); Skyrim VR is not
-supported. Русская версия: [README.ru.md](README.ru.md).
+supported. Changes: [CHANGELOG.md](CHANGELOG.md) ([RU](CHANGELOG.ru.md)). Русская версия: [README.ru.md](README.ru.md).
 
 ## State
 
-Version 0.2.0: stage 1 with the Survival Mode penalty and stage 2, the settings menu, are complete and accepted in game on Skyrim
-AE 1.6.1170.
+Version 0.2.1: stage 1 with the Survival Mode penalty and stage 2, the settings menu, are complete and accepted in game on Skyrim
+AE 1.6.1170. Version 0.2.1 fixes the
+syntax error line of a broken `config.user.toml` in the settings menu.
 
 ## What it does
 

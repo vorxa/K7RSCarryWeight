@@ -9,6 +9,7 @@
 #include "core/settings.h"
 #include "k7/common/diagnostics.h"
 #include "k7/common/form_key.h"
+#include "k7/common/user_file.h"
 
 // What the settings menu does to config.user.toml (specification, section 13.3–13.4), without the game: the menu
 // keeps a working copy of the configuration, changes it with these operations and writes back only what
@@ -52,26 +53,12 @@ namespace k7::rscw::core
     bool IsInList(const std::vector<common::FormKey>& list, const common::FormKey& form) noexcept;
 
     // config.user.toml on disk as the menu read it.
-    struct UserFileState
-    {
-        std::optional<std::string> text;    // nothing if the file is missing
-        bool                       parses{ true };
-        common::Diagnostics        diagnostics;  // the syntax error of a file that does not parse
-    };
+    using UserFileState       = common::config::UserFileState;
+    using WriteUserResult     = common::config::UserFileResult;
     UserFileState ReadUserFile(const std::filesystem::path& dir);
-
-    enum class WriteUserResult
-    {
-        Written,
-        Changed,  // the file on disk is not what the menu read: ask to overwrite or read it again
-        Broken,   // the file on disk does not parse: never written over, the player's settings would be lost
-        Failed,   // could not write; the reason is in the diagnostics
-    };
-
-    // Writes `text` as config.user.toml through a temporary file and a rename. `readText` is the content the menu
-    // read; if the file on disk differs, nothing is written and the result is Changed, unless `overwrite`.
-    // Before the first write of a game session (`backupDone` false) the old file is copied to
-    // config.user.toml.bak and `backupDone` becomes true.
+    // Writes `text` as config.user.toml through the shared user-file writer: nothing is written over a file that
+    // does not parse, the current text goes to config.user.toml.bak once per game session, and a file that differs
+    // from the one the menu read is left alone (Changed) unless `overwrite`.
     WriteUserResult WriteUserFile(const std::filesystem::path& dir, std::string_view text, const std::optional<std::string>& readText,
         bool overwrite, bool& backupDone, common::Diagnostics& diagnostics);
 

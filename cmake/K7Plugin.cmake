@@ -52,8 +52,11 @@ function(k7_add_plugin name)
             COMMENT "Deploying ${name} to ${deployDir}"
         )
         if(EXISTS "${PROJECT_SOURCE_DIR}/dist/SKSE/Plugins")
-            list(APPEND copyDistCommands COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${PROJECT_SOURCE_DIR}/dist/SKSE/Plugins" "${deployDir}/SKSE/Plugins")
+            list(APPEND copyDistCommands COMMAND ${CMAKE_COMMAND}
+                "-DSOURCE=${PROJECT_SOURCE_DIR}/dist/SKSE/Plugins"
+                "-DDESTINATION=${deployDir}/SKSE/Plugins"
+                "-DBACKUP_ROOT=${modsDir}/.k7-deploy-backups/${name}"
+                -P "${CMAKE_SOURCE_DIR}/tools/deploy_data.cmake")
         endif()
     endforeach()
     if(copyDistCommands)
