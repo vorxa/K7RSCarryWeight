@@ -1,9 +1,19 @@
 #include <catch2/catch_test_macros.hpp>
+#include <limits>
 
 #include "core/defaults.h"
 #include "core/recount.h"
 
 using namespace k7::rscw::core;
+
+TEST_CASE("contributions and deltas must be finite", "[recount]")
+{
+    CHECK(ValidContribution(0.0f));
+    CHECK(ValidContribution(-180.0f));
+    CHECK_FALSE(ValidContribution(std::numeric_limits<float>::quiet_NaN()));
+    CHECK_FALSE(ValidContribution(std::numeric_limits<float>::infinity()));
+    CHECK_FALSE(ValidContribution(-std::numeric_limits<float>::infinity()));
+}
 
 namespace
 {

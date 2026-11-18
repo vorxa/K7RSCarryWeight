@@ -29,6 +29,7 @@ namespace k7::rscw::core
         layers.migrations     = options.migrations;
         layers.currentVersion = options.currentVersion;
         layers.userLayer      = options.userLayer;
+        layers.loadedUserText = &result.loadedUserText;
 
         result.appliedFiles = common::config::LoadLayers(dir, layers,
             [&](const toml::table& layer, const std::string& display, common::Diagnostics& diagnostics) {

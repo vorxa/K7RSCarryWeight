@@ -8,7 +8,7 @@ carry weight by race and sex. Every release of the plugin is one commit here (`R
 * Русская версия: [README.ru.md](README.ru.md).
 
 The mirror holds everything needed to build the plugin: the plugin itself (`plugins/K7RSCarryWeight/`), the shared
-libraries (`libs/common`, `libs/skse`), the build scripts (`cmake/`, `tools/build.cmd`) and the SKSE Menu Framework
+libraries (`libs/common`, `libs/skse`), the build and deployment scripts (`cmake/`, `tools/`) and the SKSE Menu Framework
 header (`third_party/`). CommonLibSSE-NG is a git submodule in `lib/commonlibsse-ng`.
 
 ## Build

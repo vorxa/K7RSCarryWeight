@@ -23,9 +23,11 @@ namespace k7::rscw::ui
         std::atomic<std::int64_t> g_lastRefreshMs{ 0 };
 
         // Main thread only.
-        bool          g_backupDone = false;    // config.user.toml.bak made in this game session
+        bool          g_backupDone = false;    // legacy .bak checked in this game session
         std::uint64_t g_actionId = 0;
         std::uint64_t g_configRevision = 1;
+        std::uint64_t g_loggedRevision = 0;
+        std::optional<std::string> g_loggedBrokenText;
 
         std::int64_t NowMs()
         {
@@ -107,7 +109,24 @@ namespace k7::rscw::ui
             next.problems = config::GetDiagnostics();
             next.files = config::GetFiles();
             next.userFile = core::ReadUserFile(config::Dir());
+            next.loadedUserText = config::GetLoadedUserText();
             next.configRevision = g_configRevision;
+
+            // The menu directs the player to the log, including for errors discovered after the last load.
+            if (g_loggedRevision != g_configRevision) {
+                for (const auto& problem : next.problems) {
+                    spdlog::error("menu diagnostics: {}", common::Format(problem));
+                }
+                g_loggedRevision = g_configRevision;
+            }
+            if (!next.userFile.parses && next.userFile.text != g_loggedBrokenText) {
+                for (const auto& problem : next.userFile.diagnostics) {
+                    spdlog::error("menu diagnostics: {}", common::Format(problem));
+                }
+                g_loggedBrokenText = next.userFile.text;
+            } else if (next.userFile.parses) {
+                g_loggedBrokenText.reset();
+            }
 
             std::scoped_lock lock(g_mutex);
             next.revision = g_snapshot.revision + 1;
@@ -206,13 +225,13 @@ namespace k7::rscw::ui
         });
     }
 
-    void StartClean()
+    void StartClean(std::optional<std::string> expected)
     {
-        Queue([] {
+        Queue([expected = std::move(expected)] {
             common::Diagnostics diagnostics;
             ActionResult        result;
-            if (core::StartCleanUserFile(config::Dir(), diagnostics)) {
-                spdlog::info("menu: config.user.toml kept as config.user.toml.bak, a clean file started");
+            if (core::StartCleanUserFile(config::Dir(), diagnostics, &expected)) {
+                spdlog::info("menu: verified dated backup saved, a clean config.user.toml started");
                 ReloadAndRecount("menu");
                 result.kind = ActionResult::Kind::CleanStarted;
             } else {

@@ -8,6 +8,8 @@
 #include "race_lookup.h"
 #include "survival.h"
 
+#include <limits>
+
 namespace k7::rscw::carry
 {
     namespace
@@ -19,6 +21,7 @@ namespace k7::rscw::carry
         // What the plugin has put into the permanent CarryWeight modifier of the current game, and for the log
         // the race and sex it was counted for (specification, section 8).
         float         g_applied = 0.0f;
+        bool          g_contributionKnown = true;
         std::string   g_appliedRace;
         std::uint32_t g_appliedSex = 0;  // 0 male, 1 female, 2 unknown
 
@@ -44,6 +47,7 @@ namespace k7::rscw::carry
         {
             spdlog::debug("co-save: revert, applied contribution {} reset to 0", g_applied);
             g_applied = 0.0f;
+            g_contributionKnown = true;
             g_appliedRace.clear();
             g_appliedSex = 2;
         }
@@ -51,7 +55,8 @@ namespace k7::rscw::carry
         void OnSave(SKSE::SerializationInterface* a_intfc)
         {
             const auto length = static_cast<std::uint32_t>(g_appliedRace.size());
-            if (!a_intfc->OpenRecord(kRecordType, kRecordVersion) || !a_intfc->WriteRecordData(g_applied) ||
+            const float saved = g_contributionKnown ? g_applied : std::numeric_limits<float>::quiet_NaN();
+            if (!a_intfc->OpenRecord(kRecordType, kRecordVersion) || !a_intfc->WriteRecordData(saved) ||
                 !a_intfc->WriteRecordData(g_appliedSex) || !a_intfc->WriteRecordData(length) ||
                 (length && !a_intfc->WriteRecordData(g_appliedRace.data(), length))) {
                 spdlog::error("co-save: could not write record {}", RecordName(kRecordType));
@@ -82,10 +87,17 @@ namespace k7::rscw::carry
                     ok = a_intfc->ReadRecordData(race.data(), size) == size;
                 }
                 if (!ok) {
-                    spdlog::error("co-save: record {} is damaged, applied contribution taken as 0", RecordName(type));
+                    g_contributionKnown = false;
+                    spdlog::error("co-save: record {} is damaged; recount disabled because the previous contribution is unknown", RecordName(type));
+                    continue;
+                }
+                if (!core::ValidContribution(applied)) {
+                    g_contributionKnown = false;
+                    spdlog::error("co-save: non-finite contribution; recount disabled because the previous contribution is unknown");
                     continue;
                 }
                 g_applied = applied;
+                g_contributionKnown = true;
                 g_appliedSex = sex;
                 g_appliedRace = std::move(race);
                 found = true;
@@ -93,7 +105,7 @@ namespace k7::rscw::carry
             if (found) {
                 spdlog::info("co-save: applied contribution {} (counted for {}, sex {})", g_applied,
                     g_appliedRace.empty() ? "?"s : g_appliedRace, g_appliedSex == 0 ? "male" : g_appliedSex == 1 ? "female" : "unknown");
-            } else {
+            } else if (g_contributionKnown) {
                 spdlog::info("co-save: no record of this plugin in the save, applied contribution 0");
             }
         }
@@ -134,6 +146,10 @@ namespace k7::rscw::carry
 
         void RecountNow(std::string_view a_reason)
         {
+            if (!g_contributionKnown) {
+                // OnLoad already reported why recounts are disabled; polling can reach this path every second.
+                return;
+            }
             auto* player = RE::PlayerCharacter::GetSingleton();
             const auto* race = player ? player->GetRace() : nullptr;
             const auto* base = player ? player->GetActorBase() : nullptr;
@@ -156,6 +172,11 @@ namespace k7::rscw::carry
             input.survivalPenalty = config.general.survivalPenalty;
             g_lastGamePenalty = input.gamePenalty;
             const auto result = core::Recount(input);
+
+            if (!core::ValidContribution(result.contribution) || !core::ValidContribution(result.delta)) {
+                spdlog::error("recount ({}): non-finite contribution or delta; carry weight left unchanged", a_reason);
+                return;
+            }
 
             const auto raceText = std::format("{} [{}]", k7::skse::FormText(*race), races::Describe(race));
             auto*      values = player->AsActorValueOwner();
@@ -221,6 +242,7 @@ namespace k7::rscw::carry
     void OnNewGame()
     {
         g_applied = 0.0f;
+        g_contributionKnown = true;
         g_appliedRace.clear();
         g_appliedSex = 2;
         g_lastGamePenalty = 0.0f;

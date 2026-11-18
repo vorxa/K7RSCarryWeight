@@ -101,7 +101,7 @@ namespace k7::rscw::ui
             g_work.configRevision = snapshot.configRevision;
             g_work.base = snapshot.base;
             g_work.edited = snapshot.layered;
-            g_work.readText = snapshot.userFile.text;
+            g_work.readText = snapshot.loadedUserText;
             g_work.dirty = false;
             g_work.raceTargets.clear();
         }
@@ -166,7 +166,7 @@ namespace k7::rscw::ui
                 break;
             case Kind::SaveFailed:
             case Kind::CleanFailed:
-                g_work.message = F(keys::SAVE_FAILED, { { "reason", action.reason } });
+                g_work.message = F(keys::SAVE_FAILED, { { "reason", T(keys::DIAG_LOG) } });
                 break;
             case Kind::Reloaded:
             case Kind::CleanStarted:
@@ -316,7 +316,11 @@ namespace k7::rscw::ui
             }
             I::TextColored(I::ImVec4{ 1.0f, 0.55f, 0.35f, 1.0f }, "%s", T(keys::ERRORS_HEADER).c_str());
             for (const auto& problem : problems) {
-                Wrapped(common::Format(problem));
+                const auto severity = problem.severity == common::Severity::Error ? T(keys::DIAG_ERROR) :
+                    problem.severity == common::Severity::Warning ? T(keys::DIAG_WARNING) : T(keys::DIAG_NOTE);
+                const auto file = problem.file == common::kMergedConfig ? T(keys::DIAG_MERGED) : problem.file;
+                const auto line = problem.line > 0 ? std::format(":{}", problem.line) : std::string{};
+                Wrapped(F(keys::DIAG_ENTRY, { { "severity", severity }, { "file", file }, { "line", line } }));
             }
         }
 
@@ -495,7 +499,7 @@ namespace k7::rscw::ui
             }
         }
 
-        void DrawPopups()
+        void DrawPopups(const Snapshot& snapshot)
         {
             const auto changed = Label(T(keys::CHANGED_TITLE), "changed");
             const auto broken = Label(T(keys::BROKEN_TITLE), "broken");
@@ -530,7 +534,7 @@ namespace k7::rscw::ui
                 Wrapped(T(keys::BROKEN_TEXT));
                 I::PopTextWrapPos();
                 if (I::Button(T(keys::BROKEN_CLEAN).c_str())) {
-                    ui::StartClean();
+                    ui::StartClean(snapshot.userFile.text);
                     I::CloseCurrentPopup();
                 }
                 I::SameLine();
@@ -567,7 +571,7 @@ namespace k7::rscw::ui
             DrawBeast(snapshot.player);
             DrawSurvival();
             DrawButtons(snapshot);
-            DrawPopups();
+            DrawPopups(snapshot);
 
             for (const auto& key : lang::Get().TakeMissing()) {
                 spdlog::warn("lang: no text for key {} in either table", key);

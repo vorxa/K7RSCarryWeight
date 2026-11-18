@@ -85,6 +85,7 @@ namespace k7::rscw::ui
         common::Diagnostics        problems;        // of the last read of the files
         std::vector<std::string>   files;           // the files read
         core::UserFileState        userFile;        // config.user.toml on disk now
+        std::optional<std::string> loadedUserText;
         std::optional<ActionResult> lastAction;
     };
 
@@ -101,7 +102,7 @@ namespace k7::rscw::ui
     // * Reads the files again and recounts: the same as a save load, without loading.
     void Reload();
     // * "Start with a clean file" (core::StartCleanUserFile), then reads the files again.
-    void StartClean();
+    void StartClean(std::optional<std::string> expected);
     // * Checks that a record is in the game and is a race (`wantEffect` false) or a magic effect (true).
     void CheckForm(common::FormKey form, bool wantEffect, int target);
 

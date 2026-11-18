@@ -7,6 +7,7 @@
 #include <system_error>
 
 #include "k7/common/file_io.h"
+#include "k7/common/file_lock.h"
 
 namespace k7::common::config
 {
@@ -74,13 +75,25 @@ namespace k7::common::config
                 return;
             }
 
+            io::FileLock lock(layer.path);
+            if (!lock) {
+                diagnostics.push_back(Diagnostic{ Severity::Warning, layer.display, 0, "migration could not lock the user file; migrated in memory" });
+                return;
+            }
+
             auto backup = layer.path;
             backup += ".bak";
             std::ostringstream text;
             text << loaded.table;
-            if (io::WriteFile(backup, loaded.original) && io::WriteFile(layer.path, text.str())) {
+            std::error_code backupError;
+            const bool backupExists = fs::exists(backup, backupError);
+            const bool legacyReady = !backupError && (backupExists ||
+                (fs::copy_file(layer.path, backup, fs::copy_options::none, backupError) && !backupError &&
+                    io::ReadFile(backup) == std::optional<std::string>(loaded.original)));
+            if (io::ReadFile(layer.path) == std::optional<std::string>(loaded.original) && io::BackupExisting(layer.path) &&
+                legacyReady && io::WriteFileAtomic(layer.path, text.str())) {
                 diagnostics.push_back(Diagnostic{ Severity::Warning, layer.display, 0,
-                    std::format("migrated ({}), the previous version is saved as {}.bak", what, layer.display) });
+                    std::format("migrated ({}), verified dated backup saved; legacy {}.bak is retained", what, layer.display) });
             } else {
                 diagnostics.push_back(Diagnostic{ Severity::Warning, layer.display, 0,
                     std::format("migrated in memory ({}), but the file could not be rewritten", what) });
@@ -149,6 +162,9 @@ namespace k7::common::config
         if (options.userLayer && fs::exists(userLayer.path, ec)) {
             user = ReadLayer(userLayer, options, diagnostics);
         }
+        if (options.loadedUserText) {
+            *options.loadedUserText = user ? std::optional(user->original) : std::nullopt;
+        }
 
         std::vector<Layer> layers;
         layers.push_back(Layer{ std::string(options.configFile), dir / options.configFile });
@@ -158,11 +174,14 @@ namespace k7::common::config
             }
         }
 
-        if (user && options.presets) {
-            std::string preset;
-            if (const auto* meta = user->table["meta"].as_table()) {
-                if (const auto* value = meta->get("preset"); value && value->is_string()) {
-                    preset = value->as_string()->get();
+        if (options.presets && (user || options.presetName)) {
+            std::string preset = options.presetName.value_or("");
+            if (user && !options.presetName) {
+                const auto* meta = user->table["meta"].as_table();
+                if (meta) {
+                    if (const auto* value = meta->get("preset"); value && value->is_string()) {
+                        preset = value->as_string()->get();
+                    }
                 }
             }
             if (!preset.empty()) {
@@ -193,6 +212,13 @@ namespace k7::common::config
         if (user) {
             if (user->migrated) {
                 PersistMigration(userLayer, *user, true, options.currentVersion, diagnostics);
+                if (options.loadedUserText) {
+                    std::ostringstream migrated;
+                    migrated << user->table;
+                    if (io::ReadFile(userLayer.path) == std::optional<std::string>(migrated.str())) {
+                        *options.loadedUserText = migrated.str();
+                    }
+                }
             }
             apply(user->table, userLayer.display, diagnostics);
             applied.push_back(userLayer.display);
@@ -219,7 +245,7 @@ namespace k7::common::config
 
         std::error_code ec;
         fs::create_directories(dir, ec);
-        if (ec || !io::WriteFile(path, makeText())) {
+        if (ec || !io::BackupExisting(path) || !io::WriteFileAtomic(path, makeText())) {
             diagnostics.push_back(Diagnostic{ Severity::Warning, std::string(fileName), 0,
                 std::format("cannot write the default {}, built-in defaults are used", fileName) });
             return false;

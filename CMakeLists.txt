@@ -8,9 +8,11 @@ if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     message(FATAL_ERROR "In-source builds are not allowed.")
 endif()
 
-# --- Build identifier: short commit hash, with "-dirty" if the working tree has uncommitted changes.
-# Shown next to the version in the plugin logs, so that two builds of one version on different test
-# installations can be told apart. It is not part of any version and never goes into config files.
+# --- Build identifier: short commit hash, with "-dirty" if tracked files have uncommitted changes.
+# Untracked files (research notes, build output, screenshots) do not mark the build: they are not part
+# of any plugin's sources. Shown next to the version in the plugin logs, so that two builds of one
+# version on different test installations can be told apart. It is not part of any version and never
+# goes into config files.
 set(K7_BUILD_ID "unknown")
 find_package(Git QUIET)
 if(GIT_FOUND)
@@ -19,7 +21,7 @@ if(GIT_FOUND)
         OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
     if(K7_GIT_RESULT EQUAL 0)
         set(K7_BUILD_ID "${K7_GIT_HASH}")
-        execute_process(COMMAND ${GIT_EXECUTABLE} status --porcelain
+        execute_process(COMMAND ${GIT_EXECUTABLE} status --porcelain --untracked-files=no
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} OUTPUT_VARIABLE K7_GIT_STATUS
             OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
         if(K7_GIT_STATUS)

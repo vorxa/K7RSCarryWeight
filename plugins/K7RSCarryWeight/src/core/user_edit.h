@@ -65,5 +65,6 @@ namespace k7::rscw::core
     // "Start with a clean file": the current config.user.toml is copied to config.user.toml.bak (replacing an older
     // backup) and an empty one takes its place. False with an error in the diagnostics if the files could not be
     // changed.
-    bool StartCleanUserFile(const std::filesystem::path& dir, common::Diagnostics& diagnostics);
+    bool StartCleanUserFile(const std::filesystem::path& dir, common::Diagnostics& diagnostics,
+        const std::optional<std::string>* expected = nullptr);
 }

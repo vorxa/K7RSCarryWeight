@@ -4,8 +4,11 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <thread>
+#include <array>
 
 #include "k7/common/user_file.h"
+#include "k7/common/file_io.h"
 
 using namespace k7::common;
 
@@ -50,6 +53,26 @@ namespace
     constexpr std::string_view kUser = "config.user.toml";
 }
 
+TEST_CASE("concurrent user saves from one version cannot overwrite each other", "[user_file]")
+{
+    TempDir dir;
+    dir.Write("config.user.toml", "v = 1\n");
+    std::array<config::UserFileResult, 2> results{};
+    std::array<std::thread, 2> workers;
+    for (std::size_t i = 0; i < workers.size(); ++i) {
+        workers[i] = std::thread([&, i] {
+            Diagnostics diagnostics;
+            bool backupDone = false;
+            results[i] = config::WriteUserFile(dir.path, kUser, i == 0 ? "v = 2\n" : "v = 3\n",
+                std::string("v = 1\n"), false, config::BackupPolicy::EachWrite, backupDone, diagnostics);
+        });
+    }
+    for (auto& worker : workers) { worker.join(); }
+    CHECK(((results[0] == config::UserFileResult::Written && results[1] == config::UserFileResult::Changed) ||
+           (results[1] == config::UserFileResult::Written && results[0] == config::UserFileResult::Changed)));
+    CHECK((dir.Read("config.user.toml") == "v = 2\n" || dir.Read("config.user.toml") == "v = 3\n"));
+}
+
 TEST_CASE("user file: a missing file is created without a backup", "[user_file]")
 {
     TempDir          dir;
@@ -65,6 +88,123 @@ TEST_CASE("user file: a missing file is created without a backup", "[user_file]"
     CHECK(dir.Read("config.user.toml") == "# new\n");
     CHECK_FALSE(dir.Exists("config.user.toml.bak"));
     CHECK(diagnostics.empty());
+}
+
+TEST_CASE("user file: an unsafe backup destination prevents replacement", "[user_file]")
+{
+    TempDir dir;
+    dir.Write("config.user.toml", "[general]\nenabled = true\n");
+    const auto previous = io::EnvironmentPath("K7_CONFIG_BACKUP_ROOT");
+    struct RestoreEnvironment
+    {
+        std::optional<fs::path> value;
+        ~RestoreEnvironment()
+        {
+#ifdef _MSC_VER
+            _putenv_s("K7_CONFIG_BACKUP_ROOT", value ? value->string().c_str() : "");
+#else
+            if (value) { setenv("K7_CONFIG_BACKUP_ROOT", value->string().c_str(), 1); }
+            else { unsetenv("K7_CONFIG_BACKUP_ROOT"); }
+#endif
+        }
+    } restore{ previous };
+#ifdef _MSC_VER
+    REQUIRE(_putenv_s("K7_CONFIG_BACKUP_ROOT", (dir.path / "inside").string().c_str()) == 0);
+#else
+    REQUIRE(setenv("K7_CONFIG_BACKUP_ROOT", (dir.path / "inside").string().c_str(), 1) == 0);
+#endif
+    Diagnostics diagnostics;
+    bool backupDone = false;
+    const std::string original = "[general]\nenabled = true\n";
+    CHECK(config::WriteUserFile(dir.path, kUser, "# replacement\n", original, false,
+        config::BackupPolicy::EachWrite, backupDone, diagnostics) == config::UserFileResult::Failed);
+    CHECK(dir.Read("config.user.toml") == original);
+    CHECK_FALSE(diagnostics.empty());
+    CHECK_FALSE(backupDone);
+
+    diagnostics.clear();
+    CHECK_FALSE(config::StartCleanUserFile(dir.path, kUser, diagnostics));
+    CHECK(dir.Read("config.user.toml") == original);
+    CHECK_FALSE(diagnostics.empty());
+    CHECK_FALSE(dir.Exists("config.user.toml.bak"));
+}
+
+TEST_CASE("user file: missing backup environment prevents replacement", "[user_file]")
+{
+    TempDir dir;
+    const std::string original = "[general]\nenabled = true\n";
+    dir.Write("config.user.toml", original);
+    const auto previousRoot = io::EnvironmentPath("K7_CONFIG_BACKUP_ROOT");
+    const auto previousLocal = io::EnvironmentPath("LOCALAPPDATA");
+    struct RestoreEnvironment
+    {
+        std::optional<fs::path> root;
+        std::optional<fs::path> local;
+        ~RestoreEnvironment()
+        {
+#ifdef _MSC_VER
+            _putenv_s("K7_CONFIG_BACKUP_ROOT", root ? root->string().c_str() : "");
+            _putenv_s("LOCALAPPDATA", local ? local->string().c_str() : "");
+#else
+            if (root) { setenv("K7_CONFIG_BACKUP_ROOT", root->string().c_str(), 1); }
+            else { unsetenv("K7_CONFIG_BACKUP_ROOT"); }
+            if (local) { setenv("LOCALAPPDATA", local->string().c_str(), 1); }
+            else { unsetenv("LOCALAPPDATA"); }
+#endif
+        }
+    } restore{ previousRoot, previousLocal };
+#ifdef _MSC_VER
+    REQUIRE(_putenv_s("K7_CONFIG_BACKUP_ROOT", "") == 0);
+    REQUIRE(_putenv_s("LOCALAPPDATA", "") == 0);
+#else
+    REQUIRE(unsetenv("K7_CONFIG_BACKUP_ROOT") == 0);
+    REQUIRE(unsetenv("LOCALAPPDATA") == 0);
+#endif
+    Diagnostics diagnostics;
+    SECTION("save")
+    {
+        bool done = false;
+        CHECK(config::WriteUserFile(dir.path, kUser, "# new\n", original, false,
+            config::BackupPolicy::EachWrite, done, diagnostics) == config::UserFileResult::Failed);
+        CHECK_FALSE(done);
+    }
+    SECTION("reset")
+    {
+        CHECK_FALSE(config::StartCleanUserFile(dir.path, kUser, diagnostics));
+    }
+    CHECK(dir.Read("config.user.toml") == original);
+    CHECK_FALSE(dir.Exists("config.user.toml.bak"));
+    REQUIRE_FALSE(diagnostics.empty());
+    CHECK(diagnostics.front().message.find("cannot verify a unique backup") != std::string::npos);
+}
+
+// Opt-in: the caller prepares an isolated directory whose ACL denies creating a legacy .bak, and sets
+// K7_TEST_LEGACY_DIR and K7_CONFIG_BACKUP_ROOT. Never run this fixture against a game directory.
+TEST_CASE("manual isolated legacy backup access denial", "[.manual-legacy-acl]")
+{
+    const auto path = io::EnvironmentPath("K7_TEST_LEGACY_DIR");
+    if (!path) {
+        SKIP("K7_TEST_LEGACY_DIR is not configured");
+    }
+    const std::string original = "[general]\nenabled = true\n";
+    REQUIRE(io::ReadFile(*path / "config.user.toml") == original);
+    Diagnostics diagnostics;
+    SECTION("save")
+    {
+        bool done = false;
+        CHECK(config::WriteUserFile(*path, kUser, "# new\n", original, false,
+            config::BackupPolicy::EachWrite, done, diagnostics) == config::UserFileResult::Failed);
+        CHECK_FALSE(done);
+    }
+    SECTION("reset")
+    {
+        CHECK_FALSE(config::StartCleanUserFile(*path, kUser, diagnostics));
+    }
+    CHECK(io::ReadFile(*path / "config.user.toml") == original);
+    CHECK_FALSE(fs::exists(*path / "config.user.toml.bak"));
+    REQUIRE_FALSE(diagnostics.empty());
+    CAPTURE(diagnostics.front().message);
+    CHECK(diagnostics.front().message.find("cannot save config.user.toml.bak") != std::string::npos);
 }
 
 TEST_CASE("user file: each write keeps the previous text, once per session keeps the first", "[user_file]")
@@ -84,7 +224,7 @@ TEST_CASE("user file: each write keeps the previous text, once per session keeps
         const auto second = config::WriteUserFile(dir.path, kUser, "# three\n", std::string("# two\n"), false,
             config::BackupPolicy::EachWrite, backupDone, diagnostics);
         REQUIRE(second == config::UserFileResult::Written);
-        CHECK(dir.Read("config.user.toml.bak") == "# two\n");
+        CHECK(dir.Read("config.user.toml.bak") == "# one\n");
     }
 
     SECTION("once per session")

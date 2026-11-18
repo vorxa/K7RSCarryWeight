@@ -10,6 +10,7 @@
 
 #include "k7/common/config_layers.h"
 #include "k7/common/file_io.h"
+#include "k7/common/file_lock.h"
 
 namespace k7::common::config
 {
@@ -50,7 +51,10 @@ namespace k7::common::config
             const auto text = io::ReadFile(a_userPath);
             auto       backup = a_userPath;
             backup += ".bak";
-            if (!text || !io::WriteFileAtomic(backup, *text)) {
+            if (fs::exists(backup, ec)) {
+                return !ec; // legacy backup is never replaced; the unique backup was already verified
+            }
+            if (ec || !text || !fs::copy_file(a_userPath, backup, fs::copy_options::none, ec) || ec || io::ReadFile(backup) != text) {
                 Error(a_diagnostics, a_fileName, std::format("cannot save {}.bak, nothing written", a_fileName));
                 return false;
             }
@@ -73,6 +77,13 @@ namespace k7::common::config
         Diagnostics& a_diagnostics)
     {
         const auto userPath = a_dir / a_fileName;
+        std::error_code ec;
+        fs::create_directories(a_dir, ec);
+        io::FileLock lock(userPath);
+        if (ec || !lock) {
+            Error(a_diagnostics, a_fileName, "cannot lock the user file, nothing written");
+            return UserFileResult::Failed;
+        }
         const auto current  = io::ReadFile(userPath);
         if (current) {
             if (ParseErrorOf(*current, a_fileName)) {
@@ -83,13 +94,18 @@ namespace k7::common::config
             return UserFileResult::Changed;
         }
 
-        std::error_code ec;
-        fs::create_directories(a_dir, ec);
+        if (ec || !io::BackupExisting(userPath)) {
+            Error(a_diagnostics, a_fileName, "cannot verify a unique backup, nothing written");
+            return UserFileResult::Failed;
+        }
         if (a_policy == BackupPolicy::EachWrite || !a_backupDone) {
             if (!SaveBackup(userPath, a_fileName, a_diagnostics)) {
                 return UserFileResult::Failed;
             }
             a_backupDone = true;
+        }
+        if (io::ReadFile(userPath) != current) {
+            return UserFileResult::Changed;
         }
         if (!io::WriteFileAtomic(userPath, a_text)) {
             Error(a_diagnostics, a_fileName, "cannot write the file");
@@ -98,12 +114,31 @@ namespace k7::common::config
         return UserFileResult::Written;
     }
 
-    bool StartCleanUserFile(const fs::path& a_dir, std::string_view a_fileName, Diagnostics& a_diagnostics)
+    bool StartCleanUserFile(const fs::path& a_dir, std::string_view a_fileName, Diagnostics& a_diagnostics,
+        const std::optional<std::string>* a_expectedText)
     {
         const auto      userPath = a_dir / a_fileName;
         std::error_code ec;
         fs::create_directories(a_dir, ec);
+        io::FileLock lock(userPath);
+        if (ec || !lock) {
+            Error(a_diagnostics, a_fileName, "cannot lock the user file, nothing written");
+            return false;
+        }
+        const auto original = io::ReadFile(userPath);
+        if (a_expectedText && original != *a_expectedText) {
+            Error(a_diagnostics, a_fileName, "file changed, nothing written");
+            return false;
+        }
+        if (!io::BackupExisting(userPath)) {
+            Error(a_diagnostics, a_fileName, "cannot verify a unique backup, nothing written");
+            return false;
+        }
         if (!SaveBackup(userPath, a_fileName, a_diagnostics)) {
+            return false;
+        }
+        if (io::ReadFile(userPath) != original) {
+            Error(a_diagnostics, a_fileName, "file changed, nothing written");
             return false;
         }
         if (!io::WriteFileAtomic(userPath, "")) {
@@ -135,7 +170,8 @@ namespace k7::common::config
         return names;
     }
 
-    bool SetPreset(const fs::path& a_dir, std::string_view a_fileName, std::string_view a_name, Diagnostics& a_diagnostics)
+    bool SetPreset(const fs::path& a_dir, std::string_view a_fileName, std::string_view a_name, Diagnostics& a_diagnostics,
+        const std::optional<std::string>* a_expectedText)
     {
         const std::string display(a_fileName);
         const auto        userPath = a_dir / a_fileName;
@@ -167,6 +203,11 @@ namespace k7::common::config
                 Error(a_diagnostics, display, "the file does not parse, preset not changed (fix it or reset to defaults)");
                 return false;
             }
+        }
+
+        if (a_expectedText && original != *a_expectedText) {
+            Error(a_diagnostics, display, "file changed, preset not changed");
+            return false;
         }
 
         if (a_name.empty()) {

@@ -45,5 +45,9 @@ TEST_CASE("english.toml and russian.toml have exactly the keys of the menu", "[l
             }
         }
         CHECK(actual == expected);
+        const auto& diagnostic = table->at(std::string(k7::rscw::ui::keys::DIAG_ENTRY));
+        CHECK(diagnostic.find("{severity}") != std::string::npos);
+        CHECK(diagnostic.find("{file}") != std::string::npos);
+        CHECK(diagnostic.find("{line}") != std::string::npos);
     }
 }

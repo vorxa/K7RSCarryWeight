@@ -8,7 +8,7 @@
 * English version: [README.md](README.md).
 
 В зеркале есть всё, что нужно для сборки плагина: сам плагин (`plugins/K7RSCarryWeight/`), общие библиотеки
-(`libs/common`, `libs/skse`), сборочные скрипты (`cmake/`, `tools/build.cmd`) и заголовок SKSE Menu Framework
+(`libs/common`, `libs/skse`), скрипты сборки и развёртывания (`cmake/`, `tools/`) и заголовок SKSE Menu Framework
 (`third_party/`). CommonLibSSE-NG подключена как git submodule в `lib/commonlibsse-ng`.
 
 ## Сборка

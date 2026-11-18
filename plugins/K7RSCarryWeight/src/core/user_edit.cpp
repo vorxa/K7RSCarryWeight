@@ -164,8 +164,8 @@ namespace k7::rscw::core
             common::config::BackupPolicy::OncePerSession, backupDone, diagnostics);
     }
 
-    bool StartCleanUserFile(const fs::path& dir, common::Diagnostics& diagnostics)
+    bool StartCleanUserFile(const fs::path& dir, common::Diagnostics& diagnostics, const std::optional<std::string>* expected)
     {
-        return common::config::StartCleanUserFile(dir, kUserConfigFile, diagnostics);
+        return common::config::StartCleanUserFile(dir, kUserConfigFile, diagnostics, expected);
     }
 }

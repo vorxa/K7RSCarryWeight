@@ -33,6 +33,12 @@ namespace k7::rscw::ui::keys
     inline constexpr std::string_view FILES = "K7RS_FILES";
     inline constexpr std::string_view ERRORS_HEADER = "K7RS_ERRORS_HEADER";
     inline constexpr std::string_view ERRORS_NONE = "K7RS_ERRORS_NONE";
+    inline constexpr std::string_view DIAG_ENTRY = "K7RS_DIAG_ENTRY";
+    inline constexpr std::string_view DIAG_ERROR = "K7RS_DIAG_ERROR";
+    inline constexpr std::string_view DIAG_WARNING = "K7RS_DIAG_WARNING";
+    inline constexpr std::string_view DIAG_NOTE = "K7RS_DIAG_NOTE";
+    inline constexpr std::string_view DIAG_MERGED = "K7RS_DIAG_MERGED";
+    inline constexpr std::string_view DIAG_LOG = "K7RS_DIAG_LOG";
     inline constexpr std::string_view GENERAL_HEADER = "K7RS_GENERAL_HEADER";
     inline constexpr std::string_view GENERAL_ENABLED = "K7RS_GENERAL_ENABLED";
     inline constexpr std::string_view GENERAL_ENABLED_HINT = "K7RS_GENERAL_ENABLED_HINT";
@@ -123,6 +129,12 @@ namespace k7::rscw::ui::keys
         FILES,
         ERRORS_HEADER,
         ERRORS_NONE,
+        DIAG_ENTRY,
+        DIAG_ERROR,
+        DIAG_WARNING,
+        DIAG_NOTE,
+        DIAG_MERGED,
+        DIAG_LOG,
         GENERAL_HEADER,
         GENERAL_ENABLED,
         GENERAL_ENABLED_HINT,

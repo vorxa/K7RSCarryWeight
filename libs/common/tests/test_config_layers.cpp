@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "k7/common/config_layers.h"
+#include "k7/common/user_file.h"
 
 using namespace k7::common;
 
@@ -79,6 +80,24 @@ namespace
         options.presets   = true;
         return options;
     }
+}
+
+TEST_CASE("loaded user text stays tied to the applied layer after an external edit", "[layers]")
+{
+    TempDir dir;
+    dir.Write("config.toml", "v = 'base'\n");
+    dir.Write("config.user.toml", "v = 'old'\n");
+    std::optional<std::string> loaded;
+    config::LayerOptions options;
+    options.loadedUserText = &loaded;
+    const auto result = Load(dir.path, options);
+    REQUIRE(result.v == "old");
+    dir.Write("config.user.toml", "v = 'external'\n");
+    bool backupDone = false;
+    Diagnostics diagnostics;
+    CHECK(config::WriteUserFile(dir.path, "config.user.toml", "v = 'menu'\n", loaded, false,
+        config::BackupPolicy::EachWrite, backupDone, diagnostics) == config::UserFileResult::Changed);
+    CHECK(dir.Read("config.user.toml") == "v = 'external'\n");
 }
 
 TEST_CASE("preset names are plain file names", "[config]")

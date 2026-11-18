@@ -12,7 +12,7 @@
 // safety floor for every plugin:
 //   * a file that does not parse is never written over: the player's settings would be lost;
 //   * a file is replaced atomically, through a temporary file and a rename;
-//   * before the first replacement the current text goes to <file>.bak.
+//   * before every replacement a unique verified copy is saved outside the configuration tree.
 // What stays with the plugin: what to write (its own "only the differences" text), whether to compare the file
 // with the text the editor read, and how often to keep the backup.
 // Log lines here are English, like the rest of the log; nothing here is shown to the player.
@@ -30,8 +30,8 @@ namespace k7::common::config
 
     enum class BackupPolicy
     {
-        EachWrite,        // the backup always holds the text from before this write
-        OncePerSession,   // the first write of the session keeps the backup, later ones leave it alone
+        EachWrite,        // ensure a legacy .bak exists; never overwrite it
+        OncePerSession,   // ensure a legacy .bak exists on the first write of the session
     };
 
     enum class UserFileResult
@@ -45,14 +45,16 @@ namespace k7::common::config
     // Writes `a_text` as `a_dir`/`a_fileName` through a temporary file and a rename. `a_expectedText` is the
     // content the editor read; if the file on disk differs, nothing is written and the result is Changed, unless
     // `a_overwrite`. A missing file is created. `a_backupDone` belongs to the caller's session: with
-    // OncePerSession the backup is made on the first write and the flag remembers it.
+    // OncePerSession the legacy .bak is ensured on the first write and the flag remembers it. Every replacement
+    // also requires a unique verified backup outside the config directory; an existing legacy .bak is retained.
     UserFileResult WriteUserFile(const std::filesystem::path& a_dir, std::string_view a_fileName, std::string_view a_text,
         const std::optional<std::string>& a_expectedText, bool a_overwrite, BackupPolicy a_policy, bool& a_backupDone,
         Diagnostics& a_diagnostics);
 
-    // "Start with a clean file": the current text goes to <file>.bak (replacing an older backup) and an empty file
+    // "Start with a clean file": the current text is backed up and an empty file
     // takes its place. False with an error in the diagnostics if the files could not be changed.
-    bool StartCleanUserFile(const std::filesystem::path& a_dir, std::string_view a_fileName, Diagnostics& a_diagnostics);
+    bool StartCleanUserFile(const std::filesystem::path& a_dir, std::string_view a_fileName, Diagnostics& a_diagnostics,
+        const std::optional<std::string>* a_expectedText = nullptr);
 
     // Names (without ".toml") of the files in `a_dir`/presets, alphabetically without regard to case.
     std::vector<std::string> ListPresets(const std::filesystem::path& a_dir);
@@ -62,5 +64,5 @@ namespace k7::common::config
     // invalid name, a preset that does not exist, or a user file that does not parse. Comments in the user file do
     // not survive a rewrite; the previous text is kept next to it.
     bool SetPreset(const std::filesystem::path& a_dir, std::string_view a_fileName, std::string_view a_name,
-        Diagnostics& a_diagnostics);
+        Diagnostics& a_diagnostics, const std::optional<std::string>* a_expectedText = nullptr);
 }

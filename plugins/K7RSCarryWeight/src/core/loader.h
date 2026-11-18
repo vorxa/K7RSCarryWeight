@@ -27,6 +27,7 @@ namespace k7::rscw::core
         common::Diagnostics      diagnostics;   // problems found, in the order they were met
         Sources                  sources;       // file and line of the race records the files set
         std::vector<std::string> appliedFiles;  // files that were read, in order
+        std::optional<std::string> loadedUserText;
     };
 
     struct LoadOptions

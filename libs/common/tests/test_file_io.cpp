@@ -1,8 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
+#include <algorithm>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 #include "k7/common/file_io.h"
 
@@ -59,4 +61,41 @@ TEST_CASE("an atomic write into a missing folder fails and creates nothing", "[f
     const auto file = dir.path / "no_such_folder" / "config.user.toml";
     CHECK_FALSE(io::WriteFileAtomic(file, "x"));
     CHECK_FALSE(std::filesystem::exists(file));
+}
+
+TEST_CASE("configuration backups are unique, verified and outside the source directory", "[file_io]")
+{
+    TempDir dir;
+    const auto previous = io::EnvironmentPath("K7_CONFIG_BACKUP_ROOT");
+    const auto root = dir.path / "backups";
+    const auto config = dir.path / "config" / "user.toml";
+    std::filesystem::create_directories(config.parent_path());
+#ifdef _MSC_VER
+    REQUIRE(_putenv_s("K7_CONFIG_BACKUP_ROOT", root.string().c_str()) == 0);
+#else
+    REQUIRE(setenv("K7_CONFIG_BACKUP_ROOT", root.string().c_str(), 1) == 0);
+#endif
+    REQUIRE(io::WriteFile(config, "first"));
+    CHECK(io::BackupExisting(config));
+    REQUIRE(io::WriteFile(config, "second"));
+    CHECK(io::BackupExisting(config));
+    std::vector<std::string> contents;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(root)) {
+        if (entry.is_regular_file()) { contents.push_back(*io::ReadFile(entry.path())); }
+    }
+    CHECK(contents.size() == 2);
+    CHECK(std::ranges::find(contents, "first") != contents.end());
+    CHECK(std::ranges::find(contents, "second") != contents.end());
+#ifdef _MSC_VER
+    REQUIRE(_putenv_s("K7_CONFIG_BACKUP_ROOT", (config.parent_path() / "inside").string().c_str()) == 0);
+#else
+    REQUIRE(setenv("K7_CONFIG_BACKUP_ROOT", (config.parent_path() / "inside").string().c_str(), 1) == 0);
+#endif
+    CHECK_FALSE(io::BackupExisting(config));
+    CHECK(io::ReadFile(config) == "second");
+#ifdef _MSC_VER
+    _putenv_s("K7_CONFIG_BACKUP_ROOT", previous ? previous->string().c_str() : "");
+#else
+    if (previous) { setenv("K7_CONFIG_BACKUP_ROOT", previous->string().c_str(), 1); } else { unsetenv("K7_CONFIG_BACKUP_ROOT"); }
+#endif
 }

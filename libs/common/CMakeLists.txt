@@ -6,6 +6,7 @@ find_package(tomlplusplus CONFIG REQUIRED)
 
 add_library(k7_common STATIC
     src/config_layers.cpp
+    src/file_lock.cpp
     src/form_key.cpp
     src/lang.cpp
     src/log_level.cpp

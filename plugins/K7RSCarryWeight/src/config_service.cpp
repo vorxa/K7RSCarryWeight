@@ -20,6 +20,7 @@ namespace k7::rscw::config
         core::Config  g_layered = core::MakeDefaultConfig();
         common::Diagnostics      g_diagnostics;
         std::vector<std::string> g_files;
+        std::optional<std::string> g_loadedUserText;
     }
 
     void Load(std::string_view a_reason)
@@ -43,6 +44,7 @@ namespace k7::rscw::config
             g_diagnostics = ensureDiagnostics;
             g_diagnostics.insert(g_diagnostics.end(), result.diagnostics.begin(), result.diagnostics.end());
             g_files = result.appliedFiles;
+            g_loadedUserText = std::move(result.loadedUserText);
             core::LoadOptions baseOptions;
             baseOptions.userLayer = false;
             g_base = core::LoadConfig(kConfigDir, baseOptions).config;
@@ -66,6 +68,7 @@ namespace k7::rscw::config
             g_sources = {};
             g_base    = core::MakeDefaultConfig();
             g_layered = core::MakeDefaultConfig();
+            g_loadedUserText.reset();
             spdlog::error("config: unexpected failure, built-in values are used: {}", error.what());
         }
     }
@@ -84,6 +87,8 @@ namespace k7::rscw::config
     {
         return g_layered;
     }
+
+    const std::optional<std::string>& GetLoadedUserText() noexcept { return g_loadedUserText; }
 
     const core::Config& GetBase() noexcept
     {

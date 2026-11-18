@@ -29,7 +29,9 @@ namespace k7::common::config
         std::string_view           userFile       = "config.user.toml";
         bool                       overrides      = false;  // read overrides/*.toml after config.toml
         bool                       presets        = false;  // read presets/<[meta] preset of the user file>.toml
+        std::optional<std::string> presetName;               // explicit preset, when loading a base without the user layer
         bool                       userLayer      = true;   // false: leave config.user.toml out (the base a settings menu compares with)
+        std::optional<std::string>* loadedUserText = nullptr; // text corresponding to the applied user layer
         std::span<const Migration> migrations     = {};
         int                        currentVersion = 1;
     };
@@ -49,6 +51,7 @@ namespace k7::common::config
     // learn the preset, but applied last. A missing config.toml or preset is an error, a missing user file
     // is not. Only config.user.toml is rewritten after a migration, with the old text kept as
     // config.user.toml.bak; other files belong to the shipment or to other mods and are migrated in memory.
+    // presetName can select a preset explicitly when the caller omits the user layer.
     // Returns the names of the layers that were applied, in order. Nothing throws.
     std::vector<std::string> LoadLayers(const std::filesystem::path& dir, const LayerOptions& options,
         const ApplyLayerFn& apply, Diagnostics& diagnostics);

@@ -5,9 +5,10 @@ supported. Changes: [CHANGELOG.md](CHANGELOG.md) ([RU](CHANGELOG.ru.md)). Рус
 
 ## State
 
-Version 0.2.1: stage 1 with the Survival Mode penalty and stage 2, the settings menu, are complete and accepted in game on Skyrim
+Stage 1 with the Survival Mode penalty and stage 2, the settings menu, are complete and accepted in game on Skyrim
 AE 1.6.1170. Version 0.2.1 fixes the
 syntax error line of a broken `config.user.toml` in the settings menu.
+Version 0.2.2 contains the subsequent review fixes; the latest logging change has not yet been checked in game.
 
 ## What it does
 
@@ -48,10 +49,10 @@ is accepted only if the game has it and it is a race (an effect for Survival Mod
 
 "Save" writes `config.user.toml` and applies the change at once, without loading a save. Only what differs from
 `config.toml` is written; **comments and the order of lines in `config.user.toml` are not kept**, so the previous file is
-copied to `config.user.toml.bak` before the first save of a game session. "Reset" on a race row takes its edit out of
+copied to a verified, uniquely dated backup under `%LOCALAPPDATA%/K7SkyrimPlugins/ConfigBackups` before each replacement. An existing `config.user.toml.bak` is kept and is not replaced. "Reset" on a race row takes its edit out of
 the file. The records of the vanilla races and the built-in beast forms and Survival effects are removed only by editing
 the file. If `config.user.toml` does not parse, the menu shows the error and does not write over it ("Start with a
-clean file" keeps it as `.bak`). If the file changed on disk after the menu read it, the menu asks whether to
+clean file" keeps a verified dated backup). If the file changed on disk after the menu read it, the menu asks whether to
 overwrite or re-read it.
 
 Texts of the menu are in `Data/SKSE/Plugins/K7RSCarryWeight/lang/english.toml` and `russian.toml` (the language of
@@ -104,6 +105,9 @@ look at the log at `log_level = "debug"`: when the player has a race that is not
 for example `race MyRace.esp|0x000800 [not in configuration]`.
 
 ## Removal
+
+If the log reports that the saved contribution is damaged or non-finite, the plugin leaves carry weight unchanged
+and keeps recalculation disabled in subsequent saves. Restore a save with a valid co-save to resume recalculation.
 
 The contribution lives in the save, not in the DLL. Removing the DLL alone leaves it there for good, and if the DLL
 is installed again later, the plugin no longer knows about it and adds it a second time.

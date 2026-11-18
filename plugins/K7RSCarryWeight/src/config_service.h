@@ -23,6 +23,7 @@ namespace k7::rscw::config
     // with), the problems of the last read and the files it read. Main thread only.
     const core::Config&              GetBase() noexcept;
     const core::Config&              GetLayered() noexcept;
+    const std::optional<std::string>& GetLoadedUserText() noexcept;
     const common::Diagnostics&       GetDiagnostics() noexcept;
     const std::vector<std::string>&  GetFiles() noexcept;
     const std::filesystem::path&     Dir() noexcept;

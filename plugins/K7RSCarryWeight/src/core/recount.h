@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <cmath>
 
 #include "core/settings.h"
 
@@ -8,6 +9,7 @@
 // engine collects the inputs, this decides, the engine applies the delta and remembers the new contribution.
 namespace k7::rscw::core
 {
+    inline bool ValidContribution(float value) noexcept { return std::isfinite(value); }
     enum class Sex
     {
         Male,
